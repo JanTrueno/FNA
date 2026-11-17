@@ -476,8 +476,8 @@ namespace Microsoft.Xna.Framework.Graphics
 				color,
 				origin.X / sourceW / (float) texture.Width,
 				origin.Y / sourceH / (float) texture.Height,
-				(float) Math.Sin(rotation),
-				(float) Math.Cos(rotation),
+				SinOfEXT(rotation),
+				CosOfEXT(rotation),
 				layerDepth,
 				(int) (effects & (SpriteEffects) 0x03)
 			);
@@ -537,8 +537,8 @@ namespace Microsoft.Xna.Framework.Graphics
 				color,
 				origin.X / sourceW / (float) texture.Width,
 				origin.Y / sourceH / (float) texture.Height,
-				(float) Math.Sin(rotation),
-				(float) Math.Cos(rotation),
+				SinOfEXT(rotation),
+				CosOfEXT(rotation),
 				layerDepth,
 				(int) (effects & (SpriteEffects) 0x03)
 			);
@@ -669,8 +669,8 @@ namespace Microsoft.Xna.Framework.Graphics
 				color,
 				origin.X / sourceW / (float) texture.Width,
 				origin.Y / sourceH / (float) texture.Height,
-				(float) Math.Sin(rotation),
-				(float) Math.Cos(rotation),
+				SinOfEXT(rotation),
+				CosOfEXT(rotation),
 				layerDepth,
 				(int) (effects & (SpriteEffects) 0x03)
 			);
@@ -874,8 +874,8 @@ namespace Microsoft.Xna.Framework.Graphics
 					color,
 					offsetX / sourceW / (float) textureValue.Width,
 					offsetY / sourceH / (float) textureValue.Height,
-					(float) Math.Sin(rotation),
-					(float) Math.Cos(rotation),
+					SinOfEXT(rotation),
+					CosOfEXT(rotation),
 					layerDepth,
 					(int) effects
 				);
@@ -1070,8 +1070,8 @@ namespace Microsoft.Xna.Framework.Graphics
 					color,
 					offsetX / sourceW / (float) textureValue.Width,
 					offsetY / sourceH / (float) textureValue.Height,
-					(float) Math.Sin(rotation),
-					(float) Math.Cos(rotation),
+					SinOfEXT(rotation),
+					CosOfEXT(rotation),
 					layerDepth,
 					(int) effects
 				);
@@ -1086,6 +1086,77 @@ namespace Microsoft.Xna.Framework.Graphics
 		#endregion
 
 		#region Private Methods
+
+		#region Terraria / low-power extensions (all off by default)
+
+		/// <summary>
+		/// Called with the texture of every sprite pushed, before anything else. Lets the game track which textures are in use,
+		/// for example to unload the ones that are not.
+		/// </summary>
+		public static Action<Texture2D> TextureDrawnEXT;
+
+		/// <summary>
+		/// When true, a sprite whose color is fully transparent (packed value 0) is dropped if drawing it could not change the
+		/// target: Deferred sorting, no custom effect, a blend state that adds nothing for a transparent source, no depth
+		/// writes and no stencil.
+		/// </summary>
+		public static bool SkipTransparentSpritesEXT;
+
+		/// <summary>
+		/// When true, Immediate mode uploads each sprite with SetDataOptions.Discard on drivers without NoOverwrite. On some
+		/// mobile GPUs overwriting a buffer the GPU is still reading stalls, and orphaning it does not.
+		/// </summary>
+		public static bool ImmediateDiscardEXT;
+
+		private bool CanSkipTransparentSprite()
+		{
+			if (sortMode != SpriteSortMode.Deferred || customEffect != null)
+			{
+				return false;
+			}
+			if (	blendState != BlendState.AlphaBlend &&
+				blendState != BlendState.Additive &&
+				blendState != BlendState.NonPremultiplied	)
+			{
+				return false;
+			}
+			return !(depthStencilState.DepthBufferEnable && depthStencilState.DepthBufferWriteEnable) && !depthStencilState.StencilEnable;
+		}
+
+		/* Draw() asks for the sine and the cosine of the same rotation back to back, and games draw many sprites with the
+		 * same rotation. Remembering the last angle gives exactly the same results for fewer calls.
+		 */
+		private int cachedRotationBits;
+		private bool cachedRotationSet;
+		private float cachedSin;
+		private float cachedCos;
+
+		private unsafe void UpdateSinCosEXT(float rotation)
+		{
+			int bits = *(int*) &rotation;
+			if (cachedRotationSet && bits == cachedRotationBits)
+			{
+				return;
+			}
+			cachedSin = (float) Math.Sin(rotation);
+			cachedCos = (float) Math.Cos(rotation);
+			cachedRotationBits = bits;
+			cachedRotationSet = !float.IsNaN(rotation);
+		}
+
+		private float SinOfEXT(float rotation)
+		{
+			UpdateSinCosEXT(rotation);
+			return cachedSin;
+		}
+
+		private float CosOfEXT(float rotation)
+		{
+			UpdateSinCosEXT(rotation);
+			return cachedCos;
+		}
+
+		#endregion
 
 		private unsafe void PushSprite(
 			Texture2D texture,
@@ -1105,6 +1176,15 @@ namespace Microsoft.Xna.Framework.Graphics
 			float depth,
 			int effects
 		) {
+			if (TextureDrawnEXT != null)
+			{
+				TextureDrawnEXT(texture);
+			}
+			if (SkipTransparentSpritesEXT && color.PackedValue == 0 && CanSkipTransparentSprite())
+			{
+				return;
+			}
+
 			if (numSprites >= vertexInfo.Length)
 			{
 				if (vertexInfo.Length >= MAX_ARRAYSIZE)
@@ -1175,7 +1255,7 @@ namespace Microsoft.Xna.Framework.Graphics
 							0,
 							(IntPtr) sprite,
 							VertexPositionColorTexture4.RealStride,
-							SetDataOptions.None
+							ImmediateDiscardEXT ? SetDataOptions.Discard : SetDataOptions.None
 						);
 					}
 				}

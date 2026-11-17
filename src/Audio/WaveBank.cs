@@ -30,9 +30,13 @@ namespace Microsoft.Xna.Framework.Audio
 		{
 			get
 			{
-				uint state;
-				FAudio.FACTWaveBank_GetState(handle, out state);
-				return (state & FAudio.FACT_STATE_PREPARED) != 0;
+				/* Terraria branch (after the PortMaster port by wild1walker, MIT):
+				 * FACTWaveBank_GetState sets PREPARED for every bank and only takes
+				 * the engine's lock to walk the waves for INUSE, which this does not
+				 * read; the game asks for every music track at every update. The
+				 * handle is zeroed as the bank is disposed (a null bank: 0).
+				 */
+				return handle != IntPtr.Zero;
 			}
 		}
 

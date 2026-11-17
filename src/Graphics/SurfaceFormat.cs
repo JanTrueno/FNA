@@ -124,5 +124,22 @@ namespace Microsoft.Xna.Framework.Graphics
 		/// Unsigned 16-bit R pixel format.
 		/// </summary>
 		UShortEXT,
+		/// <summary>
+		/// ASTC LDR block texture format, 4x4 blocks (128 bits per block).
+		/// Values 27-30 match FNA3D_SurfaceFormat in our FNA3D build.
+		/// </summary>
+		Astc4x4EXT,
+		/// <summary>
+		/// ASTC LDR block texture format, 5x5 blocks.
+		/// </summary>
+		Astc5x5EXT,
+		/// <summary>
+		/// ASTC LDR block texture format, 6x6 blocks.
+		/// </summary>
+		Astc6x6EXT,
+		/// <summary>
+		/// ASTC LDR block texture format, 8x8 blocks.
+		/// </summary>
+		Astc8x8EXT,
 	}
 }
