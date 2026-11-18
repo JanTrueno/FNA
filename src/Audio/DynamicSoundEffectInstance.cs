@@ -99,6 +99,7 @@ namespace Microsoft.Xna.Framework.Audio
 				throw new ArgumentOutOfRangeException("channels");
 			}
 			FAudio.FAudio_AddRef(SoundEffect.Device().Handle);
+			hasDeviceRef = true;
 
 			format.wFormatTag = 1;
 			format.nChannels = (ushort) channels;
@@ -267,6 +268,13 @@ namespace Microsoft.Xna.Framework.Audio
 
 		#endregion
 
+		#region Private Variables
+
+		// True once the constructor has taken its reference on the audio device
+		private bool hasDeviceRef;
+
+		#endregion
+
 		#region Protected Methods
 
 		protected override void Dispose(bool disposing)
@@ -275,8 +283,13 @@ namespace Microsoft.Xna.Framework.Audio
 
 			base.Dispose(disposing);
 
-			if (needsRelease)
+			/* As SoundEffect: only an instance that took its reference
+			 * gives it back (with no audio device the constructor throws
+			 * before it does, and the finalizer still comes here).
+			 */
+			if (needsRelease && hasDeviceRef)
 			{
+				hasDeviceRef = false;
 				FAudio.FAudio_Release(SoundEffect.Device().Handle);
 			}
 		}
