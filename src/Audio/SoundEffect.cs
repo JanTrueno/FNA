@@ -231,6 +231,7 @@ namespace Microsoft.Xna.Framework.Audio
 			int loopLength
 		) {
 			FAudio.FAudio_AddRef(Device().Handle);
+			hasDeviceRef = true;
 
 			this.name = name;
 			channels = nChannels;
@@ -316,6 +317,13 @@ namespace Microsoft.Xna.Framework.Audio
 
 		#endregion
 
+		#region Private Variables
+
+		// True once the constructor has taken its reference on the audio device
+		private bool hasDeviceRef;
+
+		#endregion
+
 		#region Destructor
 
 		~SoundEffect()
@@ -352,7 +360,18 @@ namespace Microsoft.Xna.Framework.Audio
 				}
 				Instances.Clear();
 
-				FAudio.FAudio_Release(Device().Handle);
+				/* Only a sound that took its reference gives it back: with
+				 * no audio device the constructor's Device() throws
+				 * NoAudioHardwareException before the reference is taken,
+				 * the half-made object is still finalized, and Device()
+				 * throwing again here, on the finalizer thread, ends a
+				 * .NET process.
+				 */
+				if (hasDeviceRef)
+				{
+					hasDeviceRef = false;
+					FAudio.FAudio_Release(Device().Handle);
+				}
 
 				FNAPlatform.Free(formatPtr);
 				FNAPlatform.Free(handle.pAudioData);
